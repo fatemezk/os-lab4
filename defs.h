@@ -121,6 +121,22 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 int             find_largest_prime_factor(int);
+
+void            age(void);
+float           get_rank(struct proc* p);
+unsigned        rand(void);
+struct proc*    round_robin_sched(void);
+int             change_queue(int, int);
+int             set_bjf_process(int, int, int, int);
+int             set_bjf(int, int, int);
+int             set_ticket(int,int,int);
+void            printp(void);
+void            changeq(int, int);
+void            printp(void);
+
+struct proc*    lot_sched(void);
+struct proc*    bjf_sched(void);
+
 int             sem_init(int,int);
 int             sem_acquire(int);
 int             sem_release(int);
