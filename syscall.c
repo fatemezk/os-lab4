@@ -104,6 +104,13 @@ extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
 extern int sys_find_largest_prime_factor(void);
+extern int sys_get_parent_pid(void);
+
+extern int sys_print_processes(void);
+extern int sys_change_queue(void);
+extern int sys_set_bjf_process(void);
+extern int sys_set_bjf(void);
+extern int sys_set_ticket(void);
 
 extern int sys_sem_init(void);
 extern int sys_sem_acquire(void);
@@ -132,7 +139,12 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_find_largest_prime_factor]       sys_find_largest_prime_factor,
-
+[SYS_get_parent_pid]       sys_get_parent_pid,
+[SYS_print_processes] sys_print_processes,
+[SYS_change_queue] sys_change_queue,
+[SYS_set_bjf_process] sys_set_bjf_process,
+[SYS_set_bjf] sys_set_bjf,
+[SYS_set_ticket] sys_set_ticket,
 [SYS_sem_init] sys_sem_init,
 [SYS_sem_acquire] sys_sem_acquire,
 [SYS_sem_release] sys_sem_release
