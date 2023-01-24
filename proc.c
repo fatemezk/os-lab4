@@ -88,6 +88,13 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->creation_time = ticks;
+  p->waiting_in_queue_cycle = 0;
+  if (p->pid == 1 || p->pid == 2)
+    p->queue_lvl = ROUND_ROBIN_LVL;
+  else
+    p->queue_lvl = LOT_LVL;
+  p->exec_cycle = 0;
 
   release(&ptable.lock);
 
@@ -172,6 +179,16 @@ growproc(int n)
   curproc->sz = sz;
   switchuvm(curproc);
   return 0;
+}
+
+void changeq(int pid, int queue)
+{
+  struct proc *p;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->pid == pid)
+      p->queue_lvl = queue;
+  }
 }
 
 // Create a new process copying p as the parent.
@@ -310,7 +327,40 @@ wait(void)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
-
+void printp(void)
+{
+  cprintf("name   pid   status   queue   init time   effectiveness   rank   cpu cycles   tickets \n");
+  struct proc *p;
+  int t;
+  acquire(&ptable.lock);
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->pid == 0)
+      continue;
+    t=p->last_tick - p->first_tick ;
+    cprintf("%s  ", p->name);
+    cprintf("%d  ", p->pid);
+    if (p->state == SLEEPING)
+      cprintf("SLEEPING  ");
+    else if (p->state == RUNNABLE)
+      cprintf("RUNNABLE  ");
+    else if (p->state == UNUSED)
+      cprintf("UNUSED  ");
+    else if (p->state == EMBRYO)
+      cprintf("EMBRYO  ");
+    else if (p->state == RUNNING)
+      cprintf("RUNNING  ");
+    else if (p->state == ZOMBIE)
+      cprintf("ZOMBIE  ");
+    cprintf("%d  ", p->queue_lvl);
+    cprintf("%d  ", p->creation_time);
+    cprintf("%d/%d/%d  ", p->arrival_ratio, p->priority_ratio, p->exec_cycle_ratio);
+    cprintf("%d  ", (int)get_rank(p));
+    cprintf("%d  \n", p->exec_cycle);
+    cprintf("%d  \n", t);
+  }
+  release(&ptable.lock);
+}
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -322,38 +372,50 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
-  for(;;){
+
+  for (;;)
+  {
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    p = round_robin_sched();
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+    if (p == 0)
+      p = lot_sched();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    if (p == 0)
+      p = bjf_sched();
+
+    if (p == 0)
+    {
+      release(&ptable.lock);
+      continue;
     }
+    age();
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+    p->waiting_in_queue_cycle = 0;
+    struct proc *pc;
+    for (pc = ptable.proc; pc < &ptable.proc[NPROC]; pc++)
+    {
+      if (pc->pid == p->pid)
+        continue;
+      pc->waiting_in_queue_cycle++;
+    }
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+    c->proc = 0;
     release(&ptable.lock);
-
   }
 }
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -387,6 +449,7 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  myproc()->exec_cycle += 1;
   sched();
   release(&ptable.lock);
 }
@@ -560,6 +623,146 @@ int find_largest_prime_factor(int n) {
    return max;
 }
 
+
+void age(void)
+{
+  struct proc *p = 0;
+
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->state != RUNNABLE)
+      continue;
+
+    if (p->waiting_in_queue_cycle > 8000)
+    {
+
+      if (p->queue_lvl == LOT_LVL)
+      {
+        p->queue_lvl = ROUND_ROBIN_LVL;
+      }
+      if (p->queue_lvl == BJF_LVL)
+      {
+        p->queue_lvl = LOT_LVL;
+      }
+      p->waiting_in_queue_cycle = 0;
+    }
+  }
+}
+
+float get_rank(struct proc *p)
+{
+  return (float)(p->priority * p->priority_ratio + p->arrival * p->arrival_ratio + p->exec_cycle * p->exec_cycle_ratio) / 10;
+}
+
+unsigned short lfsr = 0xACE1u;
+  unsigned bit;
+
+unsigned rand()
+{
+  bit  = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 5) ) & 1;
+  return lfsr =  (lfsr >> 1) | (bit << 15);
+}
+
+
+struct proc *
+round_robin_sched(void)
+{
+  struct proc *chosen_proc = 0;
+
+  int now = ticks;
+  int max_process_time = -1e5;
+
+  for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->state != RUNNABLE || p->queue_lvl != ROUND_ROBIN_LVL)
+    {
+      continue;
+    }
+
+    if (now - p->last_cpu_time > max_process_time)
+    {
+      max_process_time = now - p->last_cpu_time;
+      chosen_proc = p;
+      p->last_cpu_time = now;
+    }
+  }
+  return chosen_proc;
+}
+
+struct proc *
+bjf_sched(void)
+{
+  struct proc *chosen_proc = 0;
+  int min_rank = -1, rank = -1;
+
+  for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->state != RUNNABLE || p->queue_lvl != BJF_LVL)
+      continue;
+
+    rank = get_rank(p);
+    if (rank < min_rank || min_rank == -1)
+    {
+      chosen_proc = p;
+      min_rank = rank;
+    }
+  }
+
+  return chosen_proc;
+}
+
+struct proc *
+lot_sched(void)
+{
+  struct proc *chosen_proc = 0;
+  int ticket=rand()%200;
+  for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->state != RUNNABLE || p->queue_lvl != LOT_LVL)
+      continue;
+
+    if (ticket >= p->first_tick  &&  ticket <= p->last_tick)
+    {
+      chosen_proc = p;
+    }
+  }
+  return chosen_proc;
+}
+
+int set_bjf_process(int pid, int priority_ratio, int arrival_ratio, int exec_cycle_ratio)
+{
+  for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->pid == pid)
+    {
+      p->arrival_ratio = arrival_ratio;
+      p->priority_ratio = priority_ratio;
+      p->exec_cycle_ratio = exec_cycle_ratio;
+    }
+  }
+  return pid;
+}
+
+int set_bjf(int priority_ratio, int arrival_ratio, int exec_cycle_ratio)
+{
+  for (struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    p->arrival_ratio = arrival_ratio;
+    p->priority_ratio = priority_ratio;
+    p->exec_cycle_ratio = exec_cycle_ratio;
+  }
+  return 0;
+}
+
+int set_ticket(int pid,int first,int last){
+  for(struct proc *p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      p->first_tick=first;
+      p->last_tick=last;
+    }
+  }
+  return pid;
+}
 
 struct semaphore {
   int value;
