@@ -33,6 +33,7 @@ struct context {
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum queuelevel {ROUND_ROBIN_LVL, LOT_LVL, BJF_LVL};
 
 // Per-process state
 struct proc {
@@ -49,6 +50,21 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+   int is_tracer;
+  struct proc *tracer_parent;
+  struct proc *traced_process;
+  enum queuelevel queue_lvl;   // Queue Level (default 2)
+  int priority;
+  int priority_ratio;
+  int arrival;
+  int arrival_ratio;
+  int exec_cycle;
+  int exec_cycle_ratio;
+  int waiting_in_queue_cycle;
+  int last_cpu_time;
+  uint creation_time;
+  int first_tick;
+  int last_tick;
 };
 
 // Process memory is laid out contiguously, low addresses first:
