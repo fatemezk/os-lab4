@@ -24,7 +24,12 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int find_largest_prime_factor(void);
-
+int get_parent_pid(void);
+int print_processes(void);
+int change_queue(int, int);
+int set_bjf_process(int, int, int, int);
+int set_bjf(int, int, int);
+int set_ticket(int,int,int);
 int sem_init(int i, int j);
 int sem_acquire(int i);
 int sem_release(int i);
