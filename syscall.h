@@ -21,9 +21,13 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_find_largest_prime_factor  22 
-
-
-
 #define SYS_sem_init 23
 #define SYS_sem_acquire 24
 #define SYS_sem_release 25
+#define SYS_get_parent_pid 26
+
+#define SYS_change_queue 27
+#define SYS_set_bjf_process 28
+#define SYS_set_bjf 29
+#define SYS_set_ticket 30
+#define SYS_print_processes 31
