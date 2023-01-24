@@ -182,7 +182,15 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_getlargestprime\
+	_gpp\
+	_prime_numbers\
 	_philsof\
+	_foo\
+	_ps\
+	_sb\
+	_sbp\
+	_st\
+	_qc\
 	_df\
 
 fs.img: mkfs README $(UPROGS)
@@ -254,7 +262,15 @@ EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	getlargestprime.c\
+	gpp.c\
+	prime_numbers.c\
 	philsof.c\
+	foo.c\
+	ps.c\
+	sb.c\
+	sbp.c\
+	qc.c\
+	st.c\
 	printf.c umalloc.c df.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
