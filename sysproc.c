@@ -96,6 +96,66 @@ int sys_find_largest_prime_factor(void){
   return find_largest_prime_factor(num);
 }
 
+void sys_get_callers(int syscall_number){
+
+}
+
+
+int sys_get_parent_pid(void)
+{
+  struct proc *p = myproc()->parent;
+  while (p->is_tracer) {
+    p = p->tracer_parent;
+  }
+  return p->pid;
+}
+
+
+int
+sys_print_processes(void){
+  printp();
+  return 0;
+}
+
+int
+sys_change_queue(void) {
+  int pid;
+  int queue;
+  argint(0, &pid);
+  argint(1, &queue);
+  changeq(pid, queue);
+  return 0;
+}
+
+int
+sys_set_bjf_process(void) {
+  int pid, priority_ratio, arrival_ratio, exec_cycle_ratio;
+  argint(0, &pid);
+  argint(1, &priority_ratio);
+  argint(2, &arrival_ratio);
+  argint(3, &exec_cycle_ratio);
+  set_bjf_process(pid, priority_ratio, arrival_ratio, exec_cycle_ratio);
+  return 0;
+}
+
+int
+sys_set_bjf(void) {
+  int priority_ratio, arrival_ratio, exec_cycle_ratio;
+  argint(0, &priority_ratio);
+  argint(1, &arrival_ratio);
+  argint(2, &exec_cycle_ratio);
+  set_bjf(priority_ratio, arrival_ratio, exec_cycle_ratio);
+  return 0;
+}
+
+int sys_set_ticket(void){
+  int pid,first,last;
+  argint(0, &pid);
+  argint(1, &first);
+  argint(2, &last);
+  set_ticket(pid,first,last);
+  return 0;
+}
 
 int sys_sem_init(void){
   int i , j;
